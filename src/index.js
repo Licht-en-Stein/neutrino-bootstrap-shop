@@ -10,6 +10,7 @@ import checkoutTemplate from './templates/checkout.html';
 import paymentMethodRadioTemplate from './templates/payment-method-radio.html';
 import mkCarousel from './carousel';
 import refreshProducts from './products';
+var bcrypt = require('bcryptjs');
 
 //  this is the function which is used when the page loads
 $(() => {
@@ -76,14 +77,23 @@ $(() => {
     $('#user-signout-link').show();
     $('#user-signin-link').hide();
     $('#user-signup-link').hide();
+    $('#form-signup button').text('Update Info');
+    $('#form-signup button').attr('disabled',true);
+    $('.user-registration-header #signup-link').hide();
+    $('#form-signup h3').text('Edit info')
   }
 
   // show nav button for guest users
   function guestUser() {
+    $('#form-signup input').val('');
     $('#user-signed-link').hide();
     $('#user-signout-link').hide();
     $('#user-signin-link').show();
     $('#user-signup-link').show();
+    $('#form-signup button').text('Register');
+    $('#form-signup button').attr('disabled',false);
+    $('.user-registration-header #signup-link').show();
+    $('#form-signup h3').text('Register')
   }
 
   $('#root')
@@ -154,7 +164,6 @@ $(() => {
     // so that we have one user for ordering and checkout
     localStorage.removeItem('user');
 
-    var bcrypt = require('bcryptjs');
     bcrypt.hash($('#form-signin input[name=password]').val(), 0, function(err, hash) {
       console.log('hash: ' + hash);
       $.ajax({
@@ -200,12 +209,40 @@ $(() => {
     }
   }));
 
+
+  // click on signed-in button to edit user info
+  $('#user-signed-link').click(((e) => {
+    e.preventDefault();
+   
+    $('.user-registration').toggle('slow');
+    if ($('.shopping-cart').is(':visible')) {
+      $('.shopping-cart').hide();
+    }
+    if ($('.user-login').is(':visible')) {
+      $('.user-login').hide();
+    }
+    // get the user information from the local storage
+    const user = JSON.parse(localStorage.getItem('user'));
+    // change the field values accordingly
+    $('#form-signup [name="firstname"]').val(`${user.firstname}`);
+    $('#form-signup [name="lastname"]').val(`${user.lastname}`);
+    $('#form-signup [name="birthdate"]').val(`${user.birthdate.substring(0,10)}`);
+    $('#form-signup [name="street"]').val(`${user.street}`);
+    $('#form-signup [name="city"]').val(`${user.city}`);
+    $('#form-signup [name="postal"]').val(`${user.postal}`);
+    $('#form-signup [name="phone"]').val(`${user.phone}`);
+    $('#form-signup [name="email"]').val(`${user.email}`);
+    $('#form-signup [name="password"]').val(`${user.password}`);
+  }));
+
   //  click on signout button
   $('#user-signout').click(((e) => {
     e.preventDefault();
     guestUser();
     $('.checkout-proceed').attr('disabled', true);
     $('.checkout-user-alert').show();
+    if($('.user-registration').is(':visible'))
+      $('.user-registration').hide('slow');
     localStorage.removeItem('user');
   }));
 
@@ -223,10 +260,35 @@ $(() => {
     user.postal = $('#form-signup input[name=postal]').val();
     user.birthdate = $('#form-signup input[name=birthdate]').val();
     user.email = $('#form-signup input[name=email]').val();
-    localStorage.setItem('user', JSON.stringify(user));
-    loggedUser();
-    $('.logged').text(user.firstname);
-    $('.user-registration').toggle('slow');
+    user.phone = $('#form-signup input[name=phone]').val();
+    user.password = $('#form-signup input[name=password]').val();
+
+      $.ajax({
+        url: "http://localhost:9090/api/register",
+        method: "POST",
+        contentType: "application/json",
+        dataType: "json",
+        data: JSON.stringify(user)
+      })
+      .done(function(data) {
+        console.log('success', data);
+
+        if(data.err) {
+          $('.signerror').show();
+          $('.signerrmsg').text(data.err);
+        }
+        else {
+          const user = data;
+          localStorage.setItem('user', JSON.stringify(user));
+          loggedUser();
+          $('.logged').text(user.firstname);
+          $('.user-registration').toggle('slow');
+          $('signerror').hide()
+        }
+      })
+      .fail(function(xhr) {
+        console.log('error', xhr);
+      });      
   }));
 
   // the checkout button is located in the navbar too
@@ -337,7 +399,6 @@ $(() => {
     // close the cart widget
     $('.shopping-cart').hide();
   });
-
 
   // we will trick the $pageContent to add a padding top
   // equivalent to the navbar outer height

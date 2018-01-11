@@ -7,6 +7,7 @@ const cors = require('cors');
 const mysql = require('mysql');
 const mailnotifier = require('./mailnotifier');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 const frontendDirectoryPath = path.resolve(__dirname, './../static');
 const serverSignature = 'my_secret_signature';
@@ -23,20 +24,22 @@ app.use(express.json());
 let shopConfigPath = process.env.HOME + '/.online-shop.json';
 let shopConfig = null;
 
+console.log(shopConfigPath);
+
 if(!fs.existsSync(shopConfigPath)) {
-	console.log('Online-Shop config file was not found. Server stops.');
-	process.exit();
+  console.log('Online-Shop config file was not found. Server stops.');
+  process.exit();
 } else {
-	shopConfig = require(shopConfigPath);
+  shopConfig = require(shopConfigPath);
 }
 
 
 console.info('MYSQL: user "%s", db "%s", pass length %s', shopConfig.mysql_usr, shopConfig.mysql_db, shopConfig.mysql_pwd.length);
 var con = mysql.createConnection({
-	host: 'localhost',
-	user: shopConfig.mysql_usr,
-	password: shopConfig.mysql_pwd,
-	database: shopConfig.mysql_db
+  host: 'localhost',
+  user: shopConfig.mysql_usr,
+  password: shopConfig.mysql_pwd,
+  database: shopConfig.mysql_db
 });
 
 
@@ -45,96 +48,96 @@ const apiRouter = new Router();
 app.use('/api', apiRouter);
 
 apiRouter.get('/', (req, res) => {
-	res.send({'shop-api': '1.0'});
+  res.send({'shop-api': '1.0'});
 });
 
 apiRouter.get('/products', (req, res, next) => {
-	con.query('select * from products', function(err, rows) {
-		if (err) return next(err);
+  con.query('select * from products', function(err, rows) {
+    if (err) return next(err);
 
-		console.log( rows );
-		res.json( rows );
-	});
+    console.log( rows );
+    res.json( rows );
+  });
 });
 
 apiRouter.get('/products', (req, res, next) => {
-	con.query('select * from products', function(err, rows) {
-		if (err) return next(err);
+  con.query('select * from products', function(err, rows) {
+    if (err) return next(err);
 
-		console.log( rows );
-		res.json( rows );
-	});
+    console.log( rows );
+    res.json( rows );
+  });
 });
 
 apiRouter.get('/categories', (req, res, next) => {
-	con.query('select * from product_categories', function(err, rows) {
-		if (err) return next(err);
+  con.query('select * from product_categories', function(err, rows) {
+    if (err) return next(err);
 
-		console.log( rows );
-		res.json( rows );
-	});
+    console.log( rows );
+    res.json( rows );
+  });
 });
 
 apiRouter.get('/customers', function(req, res, next) {
-	con.query('select * from customers where active = 1', function(err, rows) {
-		if (err) return next(err);
+  con.query('select * from customers where active = 1', function(err, rows) {
+    if (err) return next(err);
 
-		console.log( rows );
-		res.json( rows );
-	});
+    console.log( rows );
+    res.json( rows );
+  });
 });
 
 apiRouter.get('/payment_methods', function(req, res, next) {
-	con.query('select * from payment_method', function(err, rows) {
-		if (err) return next(err);
+  con.query('select * from payment_method', function(err, rows) {
+    if (err) return next(err);
 
-		console.log( rows );
-		res.json( rows );
-	});
+    console.log( rows );
+    res.json( rows );
+  });
 });
 
 apiRouter.put('/activate/:userid', function(req, res, next) {
-	con.query('update customers set active = ? where id = ?',
-		[req.body.status, req.params.userid],
-		function(err, rows) {
-		if (err) return next(err);
+  con.query('update customers set active = ? where id = ?',
+    [req.body.status, req.params.userid],
+    function(err, rows) {
+    if (err) return next(err);
 
-		console.log( rows );
-		res.json( rows );
-	});
+    console.log( rows );
+    res.json( rows );
+  });
 });
-
+/*
 apiRouter.post('/user', function(req, res, next) {
-	con.query('select * from customers where email = ?',
-		[req.body.email],
-		function(err, rows) {
-			if (err) return next(err);
+  con.query('select * from customers where email = ?',
+    [req.body.email],
+    function(err, rows) {
+      if (err) return next(err);
 
-			if( rows.length > 0 ) {
-				res.json({error: 'Email already exists.'});
-			}
-			else {
-				con.query(`insert into customers (firstname, lastname, birthdate, phone, city, street, email)
-					values (?, ?, ?, ?, ?, ?, ?)`,
-					[
-					  req.body.firstname,
-					  req.body.lastname,
-					  req.body.birthdate,
-					  req.body.phone,
-					  req.body.city,
-					  req.body.street,
-					  req.body.email
-					],
-					function(err, rows) {
-					  if (err) return next(err);
+      if( rows.length > 0 ) {
+        res.json({error: 'Email already exists.'});
+      }
+      else {
+        con.query(`insert into customers (firstname, lastname, birthdate, phone, city, street, email)
+          values (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            req.body.firstname,
+            req.body.lastname,
+            req.body.birthdate,
+            req.body.phone,
+            req.body.city,
+            req.body.street,
+            req.body.email
+          ],
+          function(err, rows) {
+            if (err) return next(err);
 
-					  res.json( rows );
-					}
-				);
-			}
-		});
+            res.json( rows );
+          }
+        );
+      }
+    });
 });
- 
+*/ 
 apiRouter.post('/login', function(req, res) {
   console.log(req.body);
   if(!req.body.email || !req.body.password)
@@ -160,110 +163,153 @@ apiRouter.post('/login', function(req, res) {
   }); 
 });
 
-apiRouter.post('/order', function(req, res, next) {		
-	console.log('RECEIVING: ' + JSON.stringify(req.body));
-	con.query('insert into orders (customer_id, payment_id, created, paid) values (?, ?, now(), NULL)', [req.body.user.id, req.body.payment_method], function(err, rows) {
-			if(err) {
-				return res.json({err: err});
-			}
+apiRouter.post('/register', function(req, res) {
+  console.log(req.body);
+  if(!req.body.email || !req.body.password)
+    return res.json({ err: 'username and password required'});
 
-			const newOrderId = rows.insertId;
-			let sql = "insert into order_details (order_id, product_id, price) values ";
+  con.query('select * from customers where email = ?',
+    [req.body.email],
+    function(err, rows, next) {
+      if (err) return next(err);
 
-			let orderValue = 0;
-			for(let i=0; i<req.body.products.length; i++) {
-				const p = req.body.products[i];
-				let values = "("+newOrderId+", "+p.id+", "+p.price+")";
-				sql += values;
-				if(i < req.body.products.length - 1) {
-					sql += ','
-				}
+      if( rows.length > 0 ) {
+        return res.json({err: 'User with this email already exists.'});
+      }
+      else {
+        con.query(`insert into customers (firstname, lastname, birthdate, city, street, postal, email, phone, pwd)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            req.body.firstname,
+            req.body.lastname,
+            req.body.birthdate,
+            req.body.city,
+            req.body.street,
+            req.body.postal,
+            req.body.email,
+            req.body.phone,
+            req.body.password
+          ],
+          function(err, rows) {
+            if (err){
+              res.json({err: 'Error creating user. '+err}) 
+            } else {
+              const token = jwt.sign({email: req.body.email, pwd: req.body.pwd}, serverSignature);    
+              req.body.token = token;
+              delete req.body.pwd;  // do not send back the password
+              return res.json(req.body);
+            res.json( req.body );
+            }
+          }
+        );
+      }
+    });
+});
 
-				orderValue += parseInt(p.price) * parseInt(p.quantity);
-			}
+apiRouter.post('/order', function(req, res, next) {   
+  console.log('RECEIVING: ' + JSON.stringify(req.body));
+  con.query('insert into orders (customer_id, payment_id, created, paid) values (?, ?, now(), NULL)', [req.body.user.id, req.body.payment_method], function(err, rows) {
+      if(err) {
+        return res.json({err: err});
+      }
+
+      const newOrderId = rows.insertId;
+      let sql = "insert into order_details (order_id, product_id, price) values ";
+
+      let orderValue = 0;
+      for(let i=0; i<req.body.products.length; i++) {
+        const p = req.body.products[i];
+        let values = "("+newOrderId+", "+p.id+", "+p.price+")";
+        sql += values;
+        if(i < req.body.products.length - 1) {
+          sql += ','
+        }
+
+        orderValue += parseInt(p.price) * parseInt(p.quantity);
+      }
 
 
-			con.query(sql, function(err, rows) {
-				if(err) {
-					return res.json({err: err});
-				}	
-				
-				// here sendMail
-				let text = `Dear ${req.body.user.name},
-							Thank you for your order of ${orderValue}.
-							We which you a nice day.
-							Your Devugees-Shop Team.`;
+      con.query(sql, function(err, rows) {
+        if(err) {
+          return res.json({err: err});
+        } 
+        
+        // here sendMail
+        let text = `Dear ${req.body.user.name},
+              Thank you for your order of ${orderValue}.
+              We which you a nice day.
+              Your Devugees-Shop Team.`;
 
-				if(shopConfig.mailnotifications === "1") {
-				mailnotifier.sendMail(req.body.user.email, 'Your Order at Devugees-Shop', text);
-				}
-				return res.json({success: rows})		
-			});
+        if(shopConfig.mailnotifications === "1") {
+        mailnotifier.sendMail(req.body.user.email, 'Your Order at Devugees-Shop', text);
+        }
+        return res.json({success: rows})    
+      });
 
-		});
-	/*
-	fs.writeFile(path.resolve(__dirname, './../orders/orders'+Date.now()+'.txt'), JSON.stringify(req.body),
-		(err) => {
-			if (err) return next(err);
+    });
+  /*
+  fs.writeFile(path.resolve(__dirname, './../orders/orders'+Date.now()+'.txt'), JSON.stringify(req.body),
+    (err) => {
+      if (err) return next(err);
 
-			res.json({success:'order saved'});
-		});
-	*/
+      res.json({success:'order saved'});
+    });
+  */
 });
 
 apiRouter.put('/user/:userid', function(req, res, next) {
-	console.log('userid: ' + req.params.userid);
-	var sql = 'update customers set ';
-	var i = 1;
-	var bodyLength = Object.keys(req.body).length;
-	var values = [];
-	for(var field in req.body) {
-		sql += field + ' = ?';
-		if(i < bodyLength)
-			sql += ',';
-		i++;
-		values.push( req.body[field] );
-	}
+  console.log('userid: ' + req.params.userid);
+  var sql = 'update customers set ';
+  var i = 1;
+  var bodyLength = Object.keys(req.body).length;
+  var values = [];
+  for(var field in req.body) {
+    sql += field + ' = ?';
+    if(i < bodyLength)
+      sql += ',';
+    i++;
+    values.push( req.body[field] );
+  }
 
-	sql += ' where id = ?';
-	values.push( req.params.userid );
-	con.query(sql,
-		values,
-		function(err, rows) {
-		if (err) return next(err);
+  sql += ' where id = ?';
+  values.push( req.params.userid );
+  con.query(sql,
+    values,
+    function(err, rows) {
+    if (err) return next(err);
 
-		console.log( rows );
-		res.json( rows );
-	});
+    console.log( rows );
+    res.json( rows );
+  });
 });
 
 apiRouter.delete('/user/:userid', function(req, res, next) {
-	con.query('update customers set deleted = now() where id = ?', [req.params.userid],
-		function(err, rows) {
-		if (err) return next(err);
+  con.query('update customers set deleted = now() where id = ?', [req.params.userid],
+    function(err, rows) {
+    if (err) return next(err);
 
-		console.log( rows );
-		res.json( rows );
-	});
+    console.log( rows );
+    res.json( rows );
+  });
 });
 
 apiRouter.use(function(req, res, next) {
-	const err = new Error('Not Found');
-	err.code = 404;
-	next(err);
+  const err = new Error('Not Found');
+  err.code = 404;
+  next(err);
 });
 
 apiRouter.use(function (err, req, res, next) {
-	console.warn('Error occured for "%s":\n%s', req.url, err.stack);
-	res.json(err);
+  console.warn('Error occured for "%s":\n%s', req.url, err.stack);
+  res.json(err);
 });
 
 // avoid starting server if the connection to the DB cannot be established
 con.connect(function (err) {
-	if (err) throw err;
+  if (err) throw err;
 
-	app.listen( 9090, (err) => {
-		if(err) throw err;
-		console.log('Server started on port 9090');
-	});
+  app.listen( 9090, (err) => {
+    if(err) throw err;
+    console.log('Server started on port 9090');
+  });
 });
