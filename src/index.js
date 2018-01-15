@@ -6,6 +6,7 @@ import 'bootstrap/js/src';
 import './styles.scss';
 import navbarTemplate from './templates/navbar.html';
 import modalTemplate from './templates/modal.html';
+import activationModalTemplate from './templates/activationmodal.html';
 import checkoutTemplate from './templates/checkout.html';
 import paymentMethodRadioTemplate from './templates/payment-method-radio.html';
 import mkCarousel from './carousel';
@@ -100,6 +101,7 @@ $(() => {
     // we keep that outside of the page content
     // because when we click on product details
     // we replace its content
+    .append(activationModalTemplate)
     // (rather than creating the whole modal again)
     .append(modalTemplate)
     // the navbar stays accross the pages so
@@ -108,6 +110,37 @@ $(() => {
     // we add the $pageContent here and
     // we will modify its own content later
     .append($pageContent);
+
+  var urlParts = window.location.href.split('/');
+  var lastPart = urlParts[urlParts.length - 1];
+
+  if(lastPart.startsWith('activate')) {
+    var activationCode = lastPart.split('=')[1];
+   
+    $.ajax({
+      url: "http://localhost:9090/api/activate/" + activationCode,
+      method: "PUT",
+      contentType: "application/json",
+      dataType: "json",
+    })
+    .done(function(data) {
+      console.log('success', data);
+
+      if(data.error === 0) {
+        $('#activationModal').modal('show');
+      }
+      else {
+        console.log('user activation cancelled');
+      }
+    })
+    .fail(function(xhr) {
+      console.log('error', xhr);
+    });      
+
+
+    console.log('activationCode: ' + activationCode);   
+  }
+
 
   // in order to handle errors in consistent manner
   function handleAJAXError(xhr, status, error) {
@@ -335,6 +368,9 @@ $(() => {
       // to send a POST request to the server
       $.ajax('http://localhost:9090/api/order', {
         method: 'POST',
+        headers: {
+          "Authorization": "Bearer " + localStorage.user.token
+        },        
         // the content-type of the request has to be application/json
         // in order for the spaerver to be able to read the body (of the request)
         contentType: 'application/json',

@@ -8,6 +8,7 @@ const mysql = require('mysql');
 const mailnotifier = require('./mailnotifier');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const randomstring = require('randomstring');
 
 const frontendDirectoryPath = path.resolve(__dirname, './../static');
 const serverSignature = 'my_secret_signature';
@@ -32,7 +33,6 @@ if(!fs.existsSync(shopConfigPath)) {
 } else {
   shopConfig = require(shopConfigPath);
 }
-
 
 console.info('MYSQL: user "%s", db "%s", pass length %s', shopConfig.mysql_usr, shopConfig.mysql_db, shopConfig.mysql_pwd.length);
 var con = mysql.createConnection({
@@ -96,16 +96,23 @@ apiRouter.get('/payment_methods', function(req, res, next) {
   });
 });
 
-apiRouter.put('/activate/:userid', function(req, res, next) {
-  con.query('update customers set active = ? where id = ?',
-    [req.body.status, req.params.userid],
+apiRouter.put('/activate/:activationcode', function(req, res, next) {
+  con.query('update customers set active = 1 where activationcode = ?',
+    [req.params.activationcode],
     function(err, rows) {
-    if (err) return next(err);
+    	if (err) 
+    		return next(err);
 
-    console.log( rows );
-    res.json( rows );
+    	console.log(rows);    	
+   		if(rows.affectedRows > 0) {
+   			return res.json({ error: 0 });
+   		}
+   		else {
+   			return res.json({ error: 1 });	
+   		}
   });
 });
+
 /*
 apiRouter.post('/user', function(req, res, next) {
   con.query('select * from customers where email = ?',
@@ -177,8 +184,9 @@ apiRouter.post('/register', function(req, res) {
         return res.json({err: 'User with this email already exists.'});
       }
       else {
-        con.query(`insert into customers (firstname, lastname, birthdate, city, street, postal, email, phone, pwd)
-          values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        const activationCode = randomstring.generate(20);
+        con.query(`insert into customers (firstname, lastname, birthdate, city, street, postal, email, phone, pwd, active, activationcode)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?)`,
           [
             req.body.firstname,
             req.body.lastname,
@@ -188,18 +196,35 @@ apiRouter.post('/register', function(req, res) {
             req.body.postal,
             req.body.email,
             req.body.phone,
-            req.body.password
+            req.body.password,
+            activationCode
           ],
           function(err, rows) {
             if (err){
               res.json({err: 'Error creating user. '+err}) 
-            } else {
+            } 
+            else {
+		        console.log('sending email to: ' + req.body.email);
+		        if(shopConfig.mailnotifications === "1") {
+		        	mailnotifier.sendMail(
+			        		req.body.email, 
+			        		'Your Registration at Devugees-Shop', 
+			        		'Hallo ' + req.body.firstname + ', '
+			        		+ 'in order to complete your registration, please follow'
+			        		+ 'this link here: http://localhost:5000/activate=' + activationCode
+		        		);
+		    	}
+
+		    	res.json({ error: 0 });
+		    }
+
+              /*
               const token = jwt.sign({email: req.body.email, pwd: req.body.pwd}, serverSignature);    
               req.body.token = token;
               delete req.body.pwd;  // do not send back the password
               return res.json(req.body);
-            res.json( req.body );
-            }
+              res.json( req.body );
+              */
           }
         );
       }
