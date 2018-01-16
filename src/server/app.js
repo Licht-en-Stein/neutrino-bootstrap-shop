@@ -113,6 +113,29 @@ apiRouter.put('/activate/:activationcode', function(req, res, next) {
   });
 });
 
+function ensureToken(req, res, next) {
+	console.log('arrived at middleware ensureToken for /protected');
+	const bearerHeader = req.headers['authorization'];
+	if(typeof bearerHeader !== "undefined") {
+		const bearer = bearerHeader.split(" ");
+		const bearerToken = bearer[1];
+		req.token = bearerToken;
+		next();
+	} else {
+		res.sendStatus(403);
+	}
+}
+
+function isAuthorized(req, res, next) {
+	jwt.verify(req.token, serverSignature, function(err, data) {
+		if(err)
+			res.send(403);
+		else {
+			next();
+		}
+	});
+}
+
 /*
 apiRouter.post('/user', function(req, res, next) {
   con.query('select * from customers where email = ?',
@@ -236,7 +259,7 @@ apiRouter.post('/register', function(req, res) {
     });
 });
 
-apiRouter.post('/order', function(req, res, next) {   
+apiRouter.post('/order', ensureToken, isAuthorized, function(req, res, next) {   
   console.log('RECEIVING: ' + JSON.stringify(req.body));
   con.query('insert into orders (customer_id, payment_id, created, paid) values (?, ?, now(), NULL)', [req.body.user.id, req.body.payment_method], function(err, rows) {
       if(err) {
@@ -311,6 +334,32 @@ apiRouter.put('/user/:userid', function(req, res, next) {
     console.log( rows );
     res.json( rows );
   });
+});
+
+apiRouter.post('/resetpassword', function(req, res) {
+	if(!req.body.email)
+		return res.json( {error: 'Email required'} );
+
+	const resetCode = randomstring.generate(20);
+  	con.query('select * from customers where email = ?', [req.body.email],
+    function(err, rows) {
+    	if (err) return res.json({err: err});
+
+    	if(rows.length > 0) {
+			con.query('insert into passwordreset (email, resetcode) values (?, ?)', 
+				[req.body.email, resetCode],
+    		function(err, rows) {    		
+    			if(err) return res.json({err:err});
+
+    			return res.json( {err: 0} );
+    		});
+
+			mailnotifier.sendMail(req.body.email, 'Your Password Reset',
+				'In order to reset your password, please follow this link: http://localhost:5000/resetpassword=' + resetCode);
+
+    	}
+  });	
+
 });
 
 apiRouter.delete('/user/:userid', function(req, res, next) {

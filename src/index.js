@@ -7,6 +7,7 @@ import './styles.scss';
 import navbarTemplate from './templates/navbar.html';
 import modalTemplate from './templates/modal.html';
 import activationModalTemplate from './templates/activationmodal.html';
+import resetPasswordModalTemplate from './templates/resetpasswordmodal.html';
 import checkoutTemplate from './templates/checkout.html';
 import paymentMethodRadioTemplate from './templates/payment-method-radio.html';
 import mkCarousel from './carousel';
@@ -101,6 +102,7 @@ $(() => {
     // because when we click on product details
     // we replace its content
     .append(activationModalTemplate)
+    .append(resetPasswordModalTemplate)
     // (rather than creating the whole modal again)
     .append(modalTemplate)
     // the navbar stays accross the pages so
@@ -140,7 +142,10 @@ $(() => {
     console.log('activationCode: ' + activationCode);   
   }
 
-
+  if(lastPart.startsWith('resetpassword')) {    
+    $('#resetPasswordModal').modal({backdrop: 'static', keyboard: false})    
+  }
+  
   // in order to handle errors in consistent manner
   function handleAJAXError(xhr, status, error) {
     $pageContent
@@ -187,7 +192,14 @@ $(() => {
     if ($('.user-registration').is(':visible')) {
       $('.user-registration').hide();
     }
+    $('#form-resetpassword').hide();
   }));
+
+  $('#passwordreset-link, .passwordreset-link').click( (e) => {
+    e.preventDefault();
+    $('#form-resetpassword').show();
+    $('#form-signin').hide();
+  });
 
   // preventing default Submit event
   $('#form-signin').on('submit', ((e) => {
@@ -195,7 +207,6 @@ $(() => {
     // randomly select one user from the database at the beginning,
     // so that we have one user for ordering and checkout
     localStorage.removeItem('user');
-
       $.ajax({
         url: "http://localhost:9090/api/login",
         method: "POST",
@@ -219,6 +230,32 @@ $(() => {
           $('.logged').text(user.firstname);
           localStorage.setItem('user', JSON.stringify(user));
           $('.user-login').toggle('slow');
+        }
+      })
+      .fail(function(xhr) {
+        console.log('error', xhr);
+      });      
+  }));
+
+  $('#form-resetpassword').on('submit', ((e) => {
+    e.preventDefault();
+      $.ajax({
+        url: "http://localhost:9090/api/resetpassword",
+        method: "POST",
+        contentType: "application/json",
+        dataType: "json",
+        data: JSON.stringify({
+           email: $('#form-resetpassword input[name=email]').val()
+        })
+      })
+      .done(function(data) {
+        console.log('success', data);
+
+        if(data) {
+          $('.user-login').toggle('slow');
+        }
+        else {
+
         }
       })
       .fail(function(xhr) {
@@ -320,6 +357,7 @@ $(() => {
       });      
   }));
 
+
   // the checkout button is located in the navbar too
   $('.checkout-proceed').click(() => {
     // create a jQuery object filled with the checkoutTemplate
@@ -362,8 +400,12 @@ $(() => {
         payment_method: $checkout.find('[name="payment"]:checked').val(),
       });
       // to send a POST request to the server
+      var userToken = JSON.parse(localStorage.getItem('user')).token;
       $.ajax('http://localhost:9090/api/order', {
-        method: 'POST',        
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer ' + userToken
+        },        
         // the content-type of the request has to be application/json
         // in order for the spaerver to be able to read the body (of the request)
         contentType: 'application/json',
