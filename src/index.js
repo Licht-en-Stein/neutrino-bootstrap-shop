@@ -11,7 +11,6 @@ import checkoutTemplate from './templates/checkout.html';
 import paymentMethodRadioTemplate from './templates/payment-method-radio.html';
 import mkCarousel from './carousel';
 import refreshProducts from './products';
-var bcrypt = require('bcryptjs');
 
 //  this is the function which is used when the page loads
 $(() => {
@@ -197,8 +196,6 @@ $(() => {
     // so that we have one user for ordering and checkout
     localStorage.removeItem('user');
 
-    bcrypt.hash($('#form-signin input[name=password]').val(), 0, function(err, hash) {
-      console.log('hash: ' + hash);
       $.ajax({
         url: "http://localhost:9090/api/login",
         method: "POST",
@@ -206,7 +203,7 @@ $(() => {
         dataType: "json",
         data: JSON.stringify({
            email: $('#form-signin input[name=email]').val(), 
-           password: hash
+           password: $('#form-signin input[name=password]').val()
         })
       })
       .done(function(data) {
@@ -227,7 +224,6 @@ $(() => {
       .fail(function(xhr) {
         console.log('error', xhr);
       });      
-    });
   }));
 
   // click on signup button
@@ -367,10 +363,7 @@ $(() => {
       });
       // to send a POST request to the server
       $.ajax('http://localhost:9090/api/order', {
-        method: 'POST',
-        headers: {
-          "Authorization": "Bearer " + localStorage.user.token
-        },        
+        method: 'POST',        
         // the content-type of the request has to be application/json
         // in order for the spaerver to be able to read the body (of the request)
         contentType: 'application/json',

@@ -7,7 +7,7 @@ const cors = require('cors');
 const mysql = require('mysql');
 const mailnotifier = require('./mailnotifier');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const randomstring = require('randomstring');
 
 const frontendDirectoryPath = path.resolve(__dirname, './../static');
@@ -153,17 +153,21 @@ apiRouter.post('/login', function(req, res) {
   con.query('select * from customers where email = ?', 
     [req.body.email], function(err, rows) {
     if (err) return res.json( {err: 'Internal error happened'} );
-    var bcrypt = require('bcryptjs');
-    if(rows.length > 0 && bcrypt.compareSync(rows[0].pwd, req.body.password)){
-      console.log("auth ok");
-      if(rows.length > 0) {
-        const token = jwt.sign({email: rows[0].email, pwd: rows[0].pwd}, serverSignature);    
-        const user = rows[0];
-        user.token = token;
-        delete user.pwd;  // do not send back the password
-        return res.json(user);
-      }
-    }else{
+    if(rows.length > 0)	{
+        bcrypt.compare(req.body.password, rows[0].pwd, function(err, hashRes) {
+	        if(hashRes) {
+		        const token = jwt.sign({email: rows[0].email, pwd: rows[0].pwd}, serverSignature);    
+		        const user = rows[0];
+		        user.token = token;
+		        delete user.pwd;  // do not send back the password
+		        return res.json(user);
+		    }
+		    else {
+		    	return res.json({ err: 'password incorrect' });
+		    }
+	    });
+    } 
+    else {
       console.log("ERROR: password don't match");
       return res.json( {err: 'Username does not exist'});
     }
@@ -185,7 +189,8 @@ apiRouter.post('/register', function(req, res) {
       }
       else {
         const activationCode = randomstring.generate(20);
-        con.query(`insert into customers (firstname, lastname, birthdate, city, street, postal, email, phone, pwd, active, activationcode)
+		bcrypt.hash(req.body.password, 0, function(err, pwdHash) {
+        	con.query(`insert into customers (firstname, lastname, birthdate, city, street, postal, email, phone, pwd, active, activationcode)
           values (?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?)`,
           [
             req.body.firstname,
@@ -196,7 +201,7 @@ apiRouter.post('/register', function(req, res) {
             req.body.postal,
             req.body.email,
             req.body.phone,
-            req.body.password,
+            pwdHash,
             activationCode
           ],
           function(err, rows) {
@@ -225,8 +230,8 @@ apiRouter.post('/register', function(req, res) {
               return res.json(req.body);
               res.json( req.body );
               */
-          }
-        );
+          });
+		});
       }
     });
 });
