@@ -77,10 +77,10 @@ $(() => {
     $('#user-signout-link').show();
     $('#user-signin-link').hide();
     $('#user-signup-link').hide();
-    $('#form-signup button').text('Update Info');
-    $('#form-signup button').attr('disabled',true);
     $('.user-registration-header #signup-link').hide();
+    $('#form-signup button').text('Update Info');
     $('#form-signup h3').text('Edit info')
+    $('#form-signup').attr('id','form-edit-user');
   }
 
   // show nav button for guest users
@@ -90,10 +90,10 @@ $(() => {
     $('#user-signout-link').hide();
     $('#user-signin-link').show();
     $('#user-signup-link').show();
-    $('#form-signup button').text('Register');
-    $('#form-signup button').attr('disabled',false);
     $('.user-registration-header #signup-link').show();
-    $('#form-signup h3').text('Register')
+    $('#form-edit-user h3').text('Register');
+    $('#form-edit-user').attr('id','form-signup');
+    $('#form-signup button').text('Register');
   }
 
   $('#root')
@@ -253,15 +253,15 @@ $(() => {
     // get the user information from the local storage
     const user = JSON.parse(localStorage.getItem('user'));
     // change the field values accordingly
-    $('#form-signup [name="firstname"]').val(`${user.firstname}`);
-    $('#form-signup [name="lastname"]').val(`${user.lastname}`);
-    $('#form-signup [name="birthdate"]').val(`${user.birthdate.substring(0,10)}`);
-    $('#form-signup [name="street"]').val(`${user.street}`);
-    $('#form-signup [name="city"]').val(`${user.city}`);
-    $('#form-signup [name="postal"]').val(`${user.postal}`);
-    $('#form-signup [name="phone"]').val(`${user.phone}`);
-    $('#form-signup [name="email"]').val(`${user.email}`);
-    $('#form-signup [name="password"]').val(`${user.password}`);
+    $('#form-edit-user [name="firstname"]').val(`${user.firstname}`);
+    $('#form-edit-user [name="lastname"]').val(`${user.lastname}`);
+    $('#form-edit-user [name="birthdate"]').val(`${user.birthdate.substring(0,10)}`);
+    $('#form-edit-user [name="street"]').val(`${user.street}`);
+    $('#form-edit-user [name="city"]').val(`${user.city}`);
+    $('#form-edit-user [name="postal"]').val(`${user.postal}`);
+    $('#form-edit-user [name="phone"]').val(`${user.phone}`);
+    $('#form-edit-user [name="email"]').val(`${user.email}`);
+    $('#form-edit-user [name="password"]').val('');
   }));
 
   //  click on signout button
@@ -302,6 +302,51 @@ $(() => {
       .done(function(data) {
         console.log('success', data);
 
+        if(data.err || data.code) {
+          $('.signerror').show();
+          $('.signerrmsg').text(data.err);
+        }
+        else {
+          const user = data;
+          localStorage.setItem('user', JSON.stringify(user));
+          loggedUser();
+          $('.logged').text(user.firstname);
+          $('.user-registration').toggle('slow');
+          $('signerror').hide()
+        }
+      })
+      .fail(function(xhr) {
+        console.log('error', xhr);
+      });      
+  }));
+
+  // signup form submit
+  $('#form-edit-user').on('submit', ((e) => {
+    e.preventDefault();
+    // retrieve registration info from the form and
+    // save a new user in localStorage
+    localStorage.removeItem('user');
+    const user = {};
+    user.firstname = $('#form-edit-user input[name=firstname]').val();
+    user.lastname = $('#form-edit-user input[name=lastname]').val();
+    user.street = $('#form-edit-user input[name=street]').val();
+    user.city = $('#form-edit-user input[name=city]').val();
+    user.postal = $('#form-edit-user input[name=postal]').val();
+    user.birthdate = $('#form-edit-user input[name=birthdate]').val();
+    user.email = $('#form-edit-user input[name=email]').val();
+    user.phone = $('#form-edit-user input[name=phone]').val();
+    user.password = $('#form-edit-user input[name=password]').val();
+
+      $.ajax({
+        url: "http://localhost:9090/api/update",
+        method: "POST",
+        contentType: "application/json",
+        dataType: "json",
+        data: JSON.stringify(user)
+      })
+      .done(function(data) {
+        console.log('success', data);
+
         if(data.err) {
           $('.signerror').show();
           $('.signerrmsg').text(data.err);
@@ -319,6 +364,7 @@ $(() => {
         console.log('error', xhr);
       });      
   }));
+
 
   // the checkout button is located in the navbar too
   $('.checkout-proceed').click(() => {

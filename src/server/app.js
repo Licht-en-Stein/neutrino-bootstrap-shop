@@ -236,6 +236,39 @@ apiRouter.post('/register', function(req, res) {
     });
 });
 
+apiRouter.post('/update', function(req, res, next) {
+  console.log(req.body);
+  if(!req.body.email || !req.body.password)
+    return res.json({ err: 'username and password required'});
+  //update fields
+  bcrypt.hash(req.body.password, 0, function(err, pwdHash) {
+      con.query(`insert into customers (firstname, lastname, birthdate, city, street, postal, email, phone, pwd)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        req.body.firstname,
+        req.body.lastname,
+        req.body.birthdate,
+        req.body.city,
+        req.body.street,
+        req.body.postal,
+        req.body.email,
+        req.body.phone,
+        pwdHash
+      ],
+    function(err, rows) {
+    if (err) return next(err);
+
+      con.query('select * from customers where email = ?', 
+        [req.body.email], function(err, rows) {
+        if (err) return res.json( {err: 'Internal error happened'} );
+        if(rows.length > 0) {
+          return res.json(req.body);
+        } 
+      });
+    });
+  });
+});
+
 apiRouter.post('/order', function(req, res, next) {   
   console.log('RECEIVING: ' + JSON.stringify(req.body));
   con.query('insert into orders (customer_id, payment_id, created, paid) values (?, ?, now(), NULL)', [req.body.user.id, req.body.payment_method], function(err, rows) {
