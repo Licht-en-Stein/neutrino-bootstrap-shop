@@ -113,6 +113,29 @@ apiRouter.put('/activate/:activationcode', function(req, res, next) {
   });
 });
 
+function ensureToken(req, res, next) {
+	console.log('arrived at middleware ensureToken for /protected');
+	const bearerHeader = req.headers['authorization'];
+	if(typeof bearerHeader !== "undefined") {
+		const bearer = bearerHeader.split(" ");
+		const bearerToken = bearer[1];
+		req.token = bearerToken;
+		next();
+	} else {
+		res.sendStatus(403);
+	}
+}
+
+function isAuthorized(req, res, next) {
+	jwt.verify(req.token, serverSignature, function(err, data) {
+		if(err)
+			res.send(403);
+		else {
+			next();
+		}
+	});
+}
+
 /*
 apiRouter.post('/user', function(req, res, next) {
   con.query('select * from customers where email = ?',
@@ -236,40 +259,52 @@ apiRouter.post('/register', function(req, res) {
     });
 });
 
+
 apiRouter.post('/update', function(req, res, next) {
   console.log(req.body);
-  if(!req.body.email || !req.body.password)
+  if(!req.body.email || !req.body.id)
     return res.json({ err: 'username and password required'});
-  //update fields
-  bcrypt.hash(req.body.password, 0, function(err, pwdHash) {
-      con.query(`insert into customers (firstname, lastname, birthdate, city, street, postal, email, phone, pwd)
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        req.body.firstname,
-        req.body.lastname,
-        req.body.birthdate,
-        req.body.city,
-        req.body.street,
-        req.body.postal,
-        req.body.email,
-        req.body.phone,
-        pwdHash
-      ],
-    function(err, rows) {
-    if (err) return next(err);
 
-      con.query('select * from customers where email = ?', 
-        [req.body.email], function(err, rows) {
-        if (err) return res.json( {err: 'Internal error happened'} );
-        if(rows.length > 0) {
-          return res.json(req.body);
-        } 
-      });
-    });
-  });
+  var pwd = bcrypt.hashSync(req.body.password, 0);
+  req.body.pwd = pwd;
+  delete req.body.password;
+
+  con.query('select * from customers where id = ?', 
+    [req.body.id], function(err, rows) {
+    if (err) return res.json( {err: 'Internal error happened'} );
+    if(rows.length > 0) {
+        //update
+        var sql = 'update customers set ';
+        var i = 1;
+        var bodyLength = Object.keys(req.body).length;
+        var values = [];
+        for(var field in req.body) {
+          sql += field + ' = ?';
+          if(i < bodyLength)
+            sql += ',';
+          i++;
+          values.push( req.body[field] );
+        }
+
+        sql += ' where id = ?';
+        values.push( req.body.id );
+        con.query(sql,
+          values,
+          function(err, rows) {
+          if (err) return next(err);
+
+          console.log( "Done" );
+          res.json( req.body );
+        });
+    } 
+    else {
+      console.log("ERROR: password don't match");
+      return res.json( {err: 'Username does not exist'});
+    }
+  }); 
 });
 
-apiRouter.post('/order', function(req, res, next) {   
+apiRouter.post('/order', ensureToken, isAuthorized, function(req, res, next) {   
   console.log('RECEIVING: ' + JSON.stringify(req.body));
   con.query('insert into orders (customer_id, payment_id, created, paid) values (?, ?, now(), NULL)', [req.body.user.id, req.body.payment_method], function(err, rows) {
       if(err) {
@@ -344,6 +379,32 @@ apiRouter.put('/user/:userid', function(req, res, next) {
     console.log( rows );
     res.json( rows );
   });
+});
+
+apiRouter.post('/resetpassword', function(req, res) {
+	if(!req.body.email)
+		return res.json( {error: 'Email required'} );
+
+	const resetCode = randomstring.generate(20);
+  	con.query('select * from customers where email = ?', [req.body.email],
+    function(err, rows) {
+    	if (err) return res.json({err: err});
+
+    	if(rows.length > 0) {
+			con.query('insert into passwordreset (email, resetcode) values (?, ?)', 
+				[req.body.email, resetCode],
+    		function(err, rows) {    		
+    			if(err) return res.json({err:err});
+
+    			return res.json( {err: 0} );
+    		});
+
+			mailnotifier.sendMail(req.body.email, 'Your Password Reset',
+				'In order to reset your password, please follow this link: http://localhost:5000/resetpassword=' + resetCode);
+
+    	}
+  });	
+
 });
 
 apiRouter.delete('/user/:userid', function(req, res, next) {
